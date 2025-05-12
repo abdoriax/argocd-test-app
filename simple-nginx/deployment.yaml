@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simple-nginx-deployment # Name of the Deployment object
+spec:
+  replicas: 2 # Run 2 pods
+  selector:
+    matchLabels:
+      app: nginx # Pods with this label are managed by this Deployment
+  template:
+    metadata:
+      labels:
+        app: nginx # Label applied to the Pods
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine # Use a lightweight Nginx image
+        ports:
+        - containerPort: 80 # Nginx listens on port 80

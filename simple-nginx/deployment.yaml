@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: simple-nginx-deployment # Name of the Deployment object
 spec:
-  replicas: 3 # Run x pods
+  replicas: 5 # Run x pods
   selector:
     matchLabels:
       app: nginx # Pods with this label are managed by this Deployment

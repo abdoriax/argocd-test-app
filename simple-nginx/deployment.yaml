@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: Deploment
 metadata:
   name: simple-nginx-deployment # Name of the Deployment object
 spec:

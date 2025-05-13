@@ -1,4 +1,4 @@
-name: Validate Kubernetes Manifests
+name: Validate Kubernetes Manifests with Kubeconform
 
 on:
   push: # Run on every push to any branch
@@ -16,20 +16,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Kubeval
-        uses: instrumenta/actions-setup-kubeval@v2 # Sets up kubeval CLI
+      - name: Install Kubeconform
+        env:
+          KUBECONFORM_VERSION: "0.6.4" # Specify a Kubeconform version (check releases on GitHub)
+        run: |
+          echo "Downloading Kubeconform version ${KUBECONFORM_VERSION}..."
+          wget "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" -O kubeconform-linux-amd64.tar.gz
+          tar -xzf kubeconform-linux-amd64.tar.gz kubeconform
+          sudo mv kubeconform /usr/local/bin/
+          rm kubeconform-linux-amd64.tar.gz
+          echo "Kubeconform version $(kubeconform -v) installed."
 
       - name: Validate Kubernetes YAML files
-        # This command assumes your Kubernetes YAML files are in a directory named 'manifests'
-        # Adjust the path 'manifests/**/*.yaml' if your files are located elsewhere.
-        # You can also validate individual files or multiple directories.
-        # --ignore-missing-schemas is used because kubeval might not have schemas for all CRDs by default.
-        # For CRDs, you might need to provide their schemas explicitly or use other validation tools like conftest.
+        # This command assumes your Kubernetes YAML files are in a directory named 'simple-nginx'
+        # Adjust the path if your files are located elsewhere.
         run: |
-          echo "Validating Kubernetes manifests in the 'manifests' directory..."
-          kubeval --ignore-missing-schemas -d simple-nginx/**/*.yaml
-          # Example for a specific file:
-          # kubeval my-deployment.yaml
-
-          # If you have multiple directories:
-          # kubeval -d k8s-configs-dir1/**/*.yaml -d k8s-configs-dir2/**/*.yaml
+          echo "Validating Kubernetes manifests in the 'simple-nginx' directory..."
+          # Ensure the directory exists and contains YAML files to avoid errors
+          if [ -d "simple-nginx" ] && [ -n "$(find simple-nginx -maxdepth 1 -name '*.yaml' -print -quit 2>/dev/null)" ]; then
+            # -summary: Show a summary of validated files and errors
+            # -output quiet: Don't print validated files, only errors
+            # -strict: Disallow unknown properties (recommended for catching typos)
+            # -kubernetes-version: Specify your target K8s version for schema validation
+            kubeconform -summary -output quiet -strict -kubernetes-version 1.28.0 simple-nginx/**/*.yaml
+          else
+            echo "No YAML files found in 'simple-nginx' directory or directory does not exist. Skipping validation."
+          fi

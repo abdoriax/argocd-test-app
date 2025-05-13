@@ -1,5 +1,5 @@
 # .github/workflows/update-image-tag.yml
-name: Update Image Tag in Kubernetes Manifest #Test comment
+name: Update Image Tag in Kubernetes Manifest
 
 on:
   workflow_dispatch: # Allows manual triggering from the Actions tab
@@ -40,7 +40,9 @@ jobs:
 
       - name: Install yq (YAML processor)
         run: |
-          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+          # Using a specific version of yq for consistency, v4+ is needed for 'eval --inplace'
+          YQ_VERSION="v4.40.5" # Or choose the latest from https://github.com/mikefarah/yq/releases
+          sudo wget "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
           echo "yq version $(yq --version) installed."
 
       - name: Update image tag in manifest
@@ -65,12 +67,12 @@ jobs:
           # Store the original content to compare later
           ORIGINAL_CONTENT=$(cat "$MANIFEST_FILE")
 
-          # yq expression to update the image tag of a specific container.
+          # Corrected yq command: use 'eval --inplace' (or 'e -i')
           # It looks for the container by name, then updates its 'image' field.
           # It ensures that only the tag part of the image string is replaced,
           # and only if the image string starts with the IMAGE_PREFIX.
-          yq eval_inplace \
-            "(.spec.template.spec.containers[] | select(.name == \"${CONTAINER_NAME}\" and (.image | startswith(\"${IMAGE_PREFIX}:\")))) .image |= \"${IMAGE_PREFIX}:${NEW_TAG}\"" \
+          yq eval --inplace \
+            "(.spec.template.spec.containers[] | select(.name == \"${CONTAINER_NAME}\" and (.image | startswith(\"${IMAGE_PREFIX}:\")))) .image = \"${IMAGE_PREFIX}:${NEW_TAG}\"" \
             "$MANIFEST_FILE"
             
           echo "--- Manifest file $MANIFEST_FILE after potential update: ---"

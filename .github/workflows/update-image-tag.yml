@@ -32,10 +32,10 @@ on:
 jobs:
   update-manifest-and-create-pr:
     runs-on: ubuntu-latest
-    # No 'permissions: contents: write' needed at the job level if using a PAT for create-pull-request
-    # However, the checkout action might benefit from it for pushing to a new branch.
-    # The create-pull-request action can use its own PAT or the default GITHUB_TOKEN.
-    # For creating a PR, GITHUB_TOKEN is usually sufficient.
+    # Permissions for GITHUB_TOKEN are still useful for checkout if not using PAT for that.
+    # The create-pull-request action will use the specified PAT.
+    permissions:
+      contents: write # For checkout and local commit by the action
 
     steps:
       - name: Checkout code
@@ -90,9 +90,9 @@ jobs:
         if: steps.update_image.outputs.NO_CHANGES == 'false' # Only run if changes were made
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }} # Uses the default GitHub token
+          token: ${{ secrets.ACTIONS_PAT }} # Use the PAT you created
           commit-message: "Update image for ${{ github.event.inputs.container_name }} to ${{ github.event.inputs.new_image_tag }}"
-          committer: GitHub Actions <actions@github.com> # Or your bot user
+          committer: GitHub Actions <actions@github.com> 
           author: GitHub Actions <actions@github.com>
           signoff: false
           branch: "image-update/${{ github.event.inputs.container_name }}-${{ github.event.inputs.new_image_tag }}" # Name of the new branch

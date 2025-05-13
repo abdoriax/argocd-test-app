@@ -1,3 +1,4 @@
+# .github/workflows/validate-k8s-manifests.yml
 name: Validate Kubernetes Manifests with Kubeconform
 
 on:
@@ -5,9 +6,13 @@ on:
     branches:
       - main # Or your default branch
       - 'feature/**'
+    paths: # Only run if changes are in the simple-nginx directory
+      - 'simple-nginx/**'
   pull_request: # Also run on pull requests targeting main
     branches:
       - main
+    paths: # Only run if changes are in the simple-nginx directory
+      - 'simple-nginx/**'
 
 jobs:
   validate-manifests:
@@ -28,8 +33,7 @@ jobs:
           echo "Kubeconform version $(kubeconform -v) installed."
 
       - name: Validate Kubernetes YAML files
-        # This command assumes your Kubernetes YAML files are in a directory named 'simple-nginx'
-        # Adjust the path if your files are located elsewhere.
+        # This command assumes your Kubernetes YAML files are directly inside the 'simple-nginx' directory
         run: |
           echo "Validating Kubernetes manifests in the 'simple-nginx' directory..."
           # Ensure the directory exists and contains YAML files to avoid errors
@@ -42,3 +46,4 @@ jobs:
           else
             echo "No YAML files found in 'simple-nginx' directory or directory does not exist. Skipping validation."
           fi
+

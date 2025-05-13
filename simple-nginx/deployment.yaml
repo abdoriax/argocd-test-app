@@ -13,7 +13,7 @@ spec:
         app: nginx # Label applied to the Pods
     spec:
       containers:
-      - name: nginx
-        image: nginx:alpine # Use a lightweight Nginx image
-        ports:
-        - containerPort: 80 # Nginx listens on port 80
+        - name: nginx
+          image: nginx:1.28.0-alpine # Use a lightweight Nginx image
+          ports:
+            - containerPort: 80 # Nginx listens on port 80

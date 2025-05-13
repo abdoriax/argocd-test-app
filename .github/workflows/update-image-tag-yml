@@ -1,0 +1,108 @@
+# .github/workflows/update-image-tag.yml
+name: Update Image Tag in Kubernetes Manifest
+
+on:
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+    inputs:
+      new_image_tag:
+        description: 'The new image tag to set (e.g., 1.25.1 or latest)'
+        required: true
+        type: string
+      manifest_file_path:
+        description: 'Path to the Kubernetes manifest file (e.g., simple-nginx/deployment.yaml)'
+        required: true
+        type: string
+        default: 'simple-nginx/deployment.yaml' # Defaulting to your directory
+      container_name:
+        description: 'Name of the container in the deployment to update'
+        required: true
+        type: string
+        default: 'nginx' # Matches your deployment.yaml container name
+      image_name_prefix:
+        description: 'The prefix of the image name (e.g., nginx or your-dockerhub-username/my-app)'
+        required: true
+        type: string
+        default: 'nginx' # Matches your deployment.yaml image prefix
+
+jobs:
+  update-manifest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to push changes back to the repository
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history for all tags and branches so that `git push` can find the ref
+          # This is important if the action runs on a detached HEAD or a shallow clone.
+          fetch-depth: 0 
+
+      - name: Install yq (YAML processor)
+        run: |
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+          echo "yq version $(yq --version) installed."
+
+      - name: Update image tag in manifest
+        id: update_image
+        run: |
+          NEW_TAG="${{ github.event.inputs.new_image_tag }}"
+          MANIFEST_FILE="${{ github.event.inputs.manifest_file_path }}"
+          CONTAINER_NAME="${{ github.event.inputs.container_name }}"
+          IMAGE_PREFIX="${{ github.event.inputs.image_name_prefix }}"
+
+          echo "Attempting to update $MANIFEST_FILE:"
+          echo "  Container: '$CONTAINER_NAME'"
+          echo "  Image Prefix: '$IMAGE_PREFIX'"
+          echo "  New Tag: '$NEW_TAG'"
+
+          # Make sure the MANIFEST_FILE exists
+          if [ ! -f "$MANIFEST_FILE" ]; then
+            echo "Error: Manifest file '$MANIFEST_FILE' not found!"
+            exit 1
+          fi
+          
+          # Store the original content to compare later
+          ORIGINAL_CONTENT=$(cat "$MANIFEST_FILE")
+
+          # yq expression to update the image tag of a specific container.
+          # It looks for the container by name, then updates its 'image' field.
+          # It ensures that only the tag part of the image string is replaced,
+          # and only if the image string starts with the IMAGE_PREFIX.
+          yq eval_inplace \
+            "(.spec.template.spec.containers[] | select(.name == \"${CONTAINER_NAME}\" and (.image | startswith(\"${IMAGE_PREFIX}:\")))) .image |= \"${IMAGE_PREFIX}:${NEW_TAG}\"" \
+            "$MANIFEST_FILE"
+            
+          echo "--- Manifest file $MANIFEST_FILE after potential update: ---"
+          cat "$MANIFEST_FILE"
+          echo "---------------------------------------------------------"
+
+          # Check if the file content actually changed
+          UPDATED_CONTENT=$(cat "$MANIFEST_FILE")
+          if [ "$ORIGINAL_CONTENT" == "$UPDATED_CONTENT" ]; then
+            echo "Image tag was already set to $NEW_TAG or container/image prefix not found, or image name did not match prefix exactly. No changes made to the file."
+            echo "NO_CHANGES=true" >> $GITHUB_OUTPUT
+          else
+            echo "Image tag updated in $MANIFEST_FILE."
+            echo "NO_CHANGES=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push changes
+        if: steps.update_image.outputs.NO_CHANGES == 'false' # Only run if changes were made
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          git add "${{ github.event.inputs.manifest_file_path }}"
+          git commit -m "Update image for ${{ github.event.inputs.container_name }} to ${{ github.event.inputs.new_image_tag }}
+
+          Automated by GitHub Action.
+          Triggered for new tag: ${{ github.event.inputs.new_image_tag }}"
+          
+          # Determine the current branch (the branch the workflow was run on)
+          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          echo "Pushing changes to branch: $CURRENT_BRANCH"
+          git push origin "$CURRENT_BRANCH"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Automatically provided by GitHub
+

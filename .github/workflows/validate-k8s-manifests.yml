@@ -1,4 +1,3 @@
-# .github/workflows/validate-k8s-manifests.yml
 name: Validate Kubernetes Manifests
 
 on:
@@ -28,43 +27,9 @@ jobs:
         # For CRDs, you might need to provide their schemas explicitly or use other validation tools like conftest.
         run: |
           echo "Validating Kubernetes manifests in the 'manifests' directory..."
-          kubeval --ignore-missing-schemas -d manifests/**/*.yaml
+          kubeval --ignore-missing-schemas -d simple-nginx/**/*.yaml
           # Example for a specific file:
           # kubeval my-deployment.yaml
 
           # If you have multiple directories:
           # kubeval -d k8s-configs-dir1/**/*.yaml -d k8s-configs-dir2/**/*.yaml
-
-      # Optional: If you use Kustomize
-      - name: Setup Kustomize
-        if: false # Set to true if you use Kustomize
-        uses: imranismail/setup-kustomize@v2
-        with:
-          kustomize-version: 'v5.3.0' # Or your desired Kustomize version
-
-      - name: Validate Kustomize output (if using Kustomize)
-        if: false # Set to true if you use Kustomize
-        # This assumes your Kustomize base/overlays are in a directory structure.
-        # Example: validating an overlay in 'kustomize/overlays/production'
-        run: |
-          echo "Validating Kustomize output for 'kustomize/overlays/production'..."
-          kustomize build kustomize/overlays/production | kubeval --ignore-missing-schemas --stdin
-          # Add more lines for other Kustomize overlays if needed
-
-      # Optional: If you use Helm
-      - name: Setup Helm
-        if: false # Set to true if you use Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: 'v3.14.0' # Or your desired Helm version
-
-      - name: Lint Helm chart (if using Helm)
-        if: false # Set to true if you use Helm
-        # This assumes your Helm chart is in a directory named 'my-helm-chart'
-        run: |
-          echo "Linting Helm chart in 'my-helm-chart'..."
-          helm lint ./my-helm-chart
-          
-          # If you also want to validate the output of helm template:
-          # helm template my-release ./my-helm-chart | kubeval --ignore-missing-schemas --stdin
-

@@ -38,7 +38,7 @@ jobs:
             # -strict: Disallow unknown properties (recommended for catching typos)
             # -kubernetes-version: Specify your target K8s version for schema validation
             # Kubeconform's default text output is generally concise for valid files when -summary is used.
-            kubeconform -summary -strict -kubernetes-version 1.28.0 simple-nginx/**/*.yaml
+            kubeconform -summary -strict -kubernetes-version 1.28.0 simple-nginx/*.yaml
           else
             echo "No YAML files found in 'simple-nginx' directory or directory does not exist. Skipping validation."
           fi

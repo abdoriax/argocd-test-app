@@ -1,5 +1,5 @@
 # .github/workflows/update-image-tag.yml
-name: Update Image Tag in Kubernetes Manifest
+name: Update Image Tag & Create PR
 
 on:
   workflow_dispatch: # Allows manual triggering from the Actions tab
@@ -23,31 +23,34 @@ on:
         required: true
         type: string
         default: 'nginx' # Matches your deployment.yaml image prefix
+      target_branch:
+        description: 'The base branch for the pull request'
+        required: true
+        type: string
+        default: 'main'
 
 jobs:
-  update-manifest:
+  update-manifest-and-create-pr:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # Required to push changes back to the repository
+    # No 'permissions: contents: write' needed at the job level if using a PAT for create-pull-request
+    # However, the checkout action might benefit from it for pushing to a new branch.
+    # The create-pull-request action can use its own PAT or the default GITHUB_TOKEN.
+    # For creating a PR, GITHUB_TOKEN is usually sufficient.
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # Fetch all history for all tags and branches so that `git push` can find the ref
-          # This is important if the action runs on a detached HEAD or a shallow clone.
-          fetch-depth: 0 
+          ref: ${{ github.event.inputs.target_branch }} # Checkout the target branch to create a new branch from it
 
       - name: Install yq (YAML processor)
         run: |
-          # Using a specific version of yq for consistency, v4+ is needed for 'eval --inplace'
-          YQ_VERSION="v4.40.5" # Or choose the latest from https://github.com/mikefarah/yq/releases
+          YQ_VERSION="v4.40.5" 
           sudo wget "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
           echo "yq version $(yq --version) installed."
 
       - name: Update image tag in manifest
         id: update_image
-        # Pass workflow inputs as environment variables to be used by yq's strenv()
         env:
           YQ_NEW_TAG: ${{ github.event.inputs.new_image_tag }}
           YQ_MANIFEST_FILE: ${{ github.event.inputs.manifest_file_path }}
@@ -59,17 +62,13 @@ jobs:
           echo "  Image Prefix: '$YQ_IMAGE_PREFIX'"
           echo "  New Tag: '$YQ_NEW_TAG'"
 
-          # Make sure the MANIFEST_FILE exists
           if [ ! -f "$YQ_MANIFEST_FILE" ]; then
             echo "Error: Manifest file '$YQ_MANIFEST_FILE' not found!"
             exit 1
           fi
           
-          # Store the original content to compare later
           ORIGINAL_CONTENT=$(cat "$YQ_MANIFEST_FILE")
 
-          # Using yq with strenv for safer variable injection and single quotes for the expression.
-          # Changed the image prefix matching logic to split the image string.
           yq eval --inplace \
             '(.spec.template.spec.containers[] | select(.name == strenv(YQ_CONTAINER_NAME) and ((.image | split(":") | .[0]) == strenv(YQ_IMAGE_PREFIX)) )) .image = strenv(YQ_IMAGE_PREFIX) + ":" + strenv(YQ_NEW_TAG)' \
             "$YQ_MANIFEST_FILE"
@@ -78,33 +77,41 @@ jobs:
           cat "$YQ_MANIFEST_FILE"
           echo "---------------------------------------------------------"
 
-          # Check if the file content actually changed
           UPDATED_CONTENT=$(cat "$YQ_MANIFEST_FILE")
           if [ "$ORIGINAL_CONTENT" == "$UPDATED_CONTENT" ]; then
-            echo "Image tag was already set to $YQ_NEW_TAG or container/image prefix not found, or image name did not match prefix exactly. No changes made to the file."
+            echo "Image tag was already set to $YQ_NEW_TAG or container/image prefix not found. No changes made."
             echo "NO_CHANGES=true" >> $GITHUB_OUTPUT
           else
             echo "Image tag updated in $YQ_MANIFEST_FILE."
             echo "NO_CHANGES=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Commit and push changes
+      - name: Create Pull Request
         if: steps.update_image.outputs.NO_CHANGES == 'false' # Only run if changes were made
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          
-          # Use the original input for the file path in the git add command
-          git add "${{ github.event.inputs.manifest_file_path }}"
-          git commit -m "Update image for ${{ github.event.inputs.container_name }} to ${{ github.event.inputs.new_image_tag }}
-
-          Automated by GitHub Action.
-          Triggered for new tag: ${{ github.event.inputs.new_image_tag }}"
-          
-          # Determine the current branch (the branch the workflow was run on)
-          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-          echo "Pushing changes to branch: $CURRENT_BRANCH"
-          git push origin "$CURRENT_BRANCH"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Automatically provided by GitHub
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }} # Uses the default GitHub token
+          commit-message: "Update image for ${{ github.event.inputs.container_name }} to ${{ github.event.inputs.new_image_tag }}"
+          committer: GitHub Actions <actions@github.com> # Or your bot user
+          author: GitHub Actions <actions@github.com>
+          signoff: false
+          branch: "image-update/${{ github.event.inputs.container_name }}-${{ github.event.inputs.new_image_tag }}" # Name of the new branch
+          delete-branch: true # Automatically delete the branch when the PR is merged
+          title: "Update ${{ github.event.inputs.container_name }} image to ${{ github.event.inputs.new_image_tag }}"
+          body: |
+            Automated image update for container `${{ github.event.inputs.container_name }}`.
+            New tag: `${{ github.event.inputs.new_image_tag }}`
+            Manifest file: `${{ github.event.inputs.manifest_file_path }}`
+            
+            This PR was created automatically by the "Update Image Tag" GitHub Action.
+          labels: |
+            automated-pr
+            image-update
+          assignees: '' # Optional: your GitHub username
+          reviewers: '' # Optional: your GitHub username or team
+          # team-reviewers: |
+          #   owners
+          #   qa-team
+          draft: false
+          base: ${{ github.event.inputs.target_branch }} # Branch to create the PR against (e.g., main)
 

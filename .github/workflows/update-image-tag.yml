@@ -68,9 +68,10 @@ jobs:
           # Store the original content to compare later
           ORIGINAL_CONTENT=$(cat "$YQ_MANIFEST_FILE")
 
-          # Using yq with strenv for safer variable injection and single quotes for the expression
+          # Using yq with strenv for safer variable injection and single quotes for the expression.
+          # Changed the image prefix matching logic to split the image string.
           yq eval --inplace \
-            '(.spec.template.spec.containers[] | select(.name == strenv(YQ_CONTAINER_NAME) and (.image | startswith(strenv(YQ_IMAGE_PREFIX) + ":")))) .image = strenv(YQ_IMAGE_PREFIX) + ":" + strenv(YQ_NEW_TAG)' \
+            '(.spec.template.spec.containers[] | select(.name == strenv(YQ_CONTAINER_NAME) and ((.image | split(":") | .[0]) == strenv(YQ_IMAGE_PREFIX)) )) .image = strenv(YQ_IMAGE_PREFIX) + ":" + strenv(YQ_NEW_TAG)' \
             "$YQ_MANIFEST_FILE"
             
           echo "--- Manifest file $YQ_MANIFEST_FILE after potential update: ---"

@@ -35,10 +35,10 @@ jobs:
           # Ensure the directory exists and contains YAML files to avoid errors
           if [ -d "simple-nginx" ] && [ -n "$(find simple-nginx -maxdepth 1 -name '*.yaml' -print -quit 2>/dev/null)" ]; then
             # -summary: Show a summary of validated files and errors
-            # -output quiet: Don't print validated files, only errors
+            # -quiet: Suppress summary for valid files, only show issues
             # -strict: Disallow unknown properties (recommended for catching typos)
             # -kubernetes-version: Specify your target K8s version for schema validation
-            kubeconform -summary -output quiet -strict -kubernetes-version 1.28.0 simple-nginx/**/*.yaml
+            kubeconform -summary -quiet -strict -kubernetes-version 1.28.0 simple-nginx/**/*.yaml
           else
             echo "No YAML files found in 'simple-nginx' directory or directory does not exist. Skipping validation."
           fi
